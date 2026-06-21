@@ -32,7 +32,7 @@ async function run() {
 
         const database = client.db("auranex_db");
         const appointmentsCollection = database.collection("appointments");
-
+        const reviewsCollection = database.collection("reviews");
 
         //patient related api
         app.get('/api/appointments/patient/:email', async(req, res) => {
@@ -66,6 +66,49 @@ async function run() {
             res.send(result);
         });
 
+        app.get('/payments/:email', async(req, res) => {
+            try {
+                const { email } = req.params;
+                const paymentRecords = await appointmentsCollection.find({
+                    patientEmail: email,
+                    paymentStatus: "paid"
+                }).sort({ createdAt: -1 }).toArray();
+
+                res.status(200).json({ success: true, payments: paymentRecords });
+            } catch (error) {
+                res.status(500).json({ success: false, error: "Internal Server Error" });
+            }
+        });
+
+        app.get('/api/reviews/patient/:email', async(req, res) => {
+            try {
+                const email = req.params.email;
+                const reviews = await reviewsCollection.find({ patientEmail: email }).toArray();
+                res.status(200).json({ success: true, reviews });
+            } catch (error) {
+                res.status(500).json({ success: false, error: "Failed to fetch reviews" });
+            }
+        });
+
+        app.delete('/api/reviews/:id', async(req, res) => {
+            try {
+                const id = req.params.id;
+                const result = await reviewsCollection.deleteOne({ _id: new ObjectId(id) });
+                res.status(200).json({ success: true, deletedCount: result.deletedCount });
+            } catch (error) {
+                res.status(500).json({ success: false, error: "Failed to delete review" });
+            }
+        });
+
+        app.post('/api/reviews', async(req, res) => {
+            try {
+                const reviewData = {...req.body, createdAt: new Date() };
+                const result = await reviewsCollection.insertOne(reviewData);
+                res.status(201).json({ success: true, insertedId: result.insertedId });
+            } catch (error) {
+                res.status(500).json({ success: false, error: "Failed to post review" });
+            }
+        });
 
 
         // Send a ping to confirm a successful connection
