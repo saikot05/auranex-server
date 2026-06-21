@@ -1,11 +1,15 @@
 const express = require('express');
+const cors = require('cors');
 const app = express();
-const port = 5000;
-require('dotenv').config()
-const { MongoClient, ServerApiVersion } = require('mongodb');
+
+require('dotenv').config();
+const { MongoClient, ServerApiVersion, ObjectId } = require('mongodb');
+const port = process.env.PORT;
+app.use(cors());
+app.use(express.json());
 
 app.get('/', (req, res) => {
-    res.send('Hello World!');
+    res.send('AuraNex Server is running');
 });
 
 
@@ -24,17 +28,56 @@ async function run() {
     try {
         // Connect the client to the server	(optional starting in v4.7)
         await client.connect();
+
+
+        const database = client.db("auranex_db");
+        const appointmentsCollection = database.collection("appointments");
+
+
+        //patient related api
+        app.get('/api/appointments/patient/:email', async(req, res) => {
+            const email = req.params.email;
+            const query = { patientEmail: email };
+            const result = await appointmentsCollection.find(query).toArray();
+            res.send(result);
+        })
+
+        app.patch('/api/appointments/cancel/:id', async(req, res) => {
+            const id = req.params.id;
+            const filter = { _id: new ObjectId(id) };
+            const updateDoc = {
+                $set: { status: 'canceled' },
+            };
+            const result = await appointmentsCollection.updateOne(filter, updateDoc);
+            res.send(result);
+        });
+
+        app.patch('/api/appointments/reschedule/:id', async(req, res) => {
+            const id = req.params.id;
+            const { newDate } = req.body;
+            const filter = { _id: new ObjectId(id) };
+            const updateDoc = {
+                $set: {
+                    date: newDate,
+                    status: 'pending'
+                },
+            };
+            const result = await appointmentsCollection.updateOne(filter, updateDoc);
+            res.send(result);
+        });
+
+
+
         // Send a ping to confirm a successful connection
         await client.db("admin").command({ ping: 1 });
         console.log("Pinged your deployment. You successfully connected to MongoDB!");
-    } finally {
-        // Ensures that the client will close when you finish/error
-        await client.close();
+    } catch (error) {
+        console.error("Database connection error:", error);
     }
 }
 run().catch(console.dir);
 
 
 app.listen(port, () => {
-    console.log(`Example app listening on port ${port}`);
+    console.log(`AuraNex app listening on port ${port}`);
 });
