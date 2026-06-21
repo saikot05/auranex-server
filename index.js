@@ -33,6 +33,55 @@ async function run() {
         const database = client.db("auranex_db");
         const appointmentsCollection = database.collection("appointments");
         const reviewsCollection = database.collection("reviews");
+        const doctorsCollection = database.collection("doctors");
+
+
+        app.get('/api/doctors', async(req, res) => {
+            try {
+                const { search, specialization, sortBy, page = 1, limit = 6 } = req.query;
+
+                const query = { verificationStatus: "verified" };
+
+                if (search) {
+                    query.doctorName = { $regex: search, $options: 'i' };
+                }
+
+                if (specialization) {
+                    query.specialization = specialization;
+                }
+
+                const sortOptions = {};
+                if (sortBy === 'fee_low') sortOptions.consultationFee = 1;
+                if (sortBy === 'fee_high') sortOptions.consultationFee = -1;
+                if (sortBy === 'experience') sortOptions.experience = -1;
+                if (sortBy === 'rating') sortOptions.rating = -1;
+
+                const parsedPage = parseInt(page);
+                const parsedLimit = parseInt(limit);
+                const skip = (parsedPage - 1) * parsedLimit;
+
+                const totalDoctors = await doctorsCollection.countDocuments(query);
+                const doctors = await doctorsCollection.find(query)
+                    .sort(sortOptions)
+                    .skip(skip)
+                    .limit(parsedLimit)
+                    .toArray();
+
+                res.status(200).json({
+                    success: true,
+                    doctors,
+                    totalDoctors,
+                    totalPages: Math.ceil(totalDoctors / parsedLimit),
+                    currentPage: parsedPage
+                });
+            } catch (error) {
+                res.status(500).json({ success: false, error: "Failed to fetch doctors data" });
+            }
+        });
+
+
+
+
 
         //patient related api
         app.get('/api/appointments/patient/:email', async(req, res) => {
