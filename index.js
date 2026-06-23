@@ -1,17 +1,16 @@
-const express = require('express');
-const cors = require('cors');
+const express = require("express");
+const cors = require("cors");
 const app = express();
 
-require('dotenv').config();
-const { MongoClient, ServerApiVersion, ObjectId } = require('mongodb');
+require("dotenv").config();
+const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
 const port = process.env.PORT;
 app.use(cors());
 app.use(express.json());
 
-app.get('/', (req, res) => {
-    res.send('AuraNex Server is running');
+app.get("/", (req, res) => {
+    res.send("AuraNex Server is running");
 });
-
 
 const uri = process.env.MONGO_DB_URI;
 
@@ -21,14 +20,13 @@ const client = new MongoClient(uri, {
         version: ServerApiVersion.v1,
         strict: true,
         deprecationErrors: true,
-    }
+    },
 });
 
 async function run() {
     try {
         // Connect the client to the server	(optional starting in v4.7)
         await client.connect();
-
 
         const database = client.db("auranex_db");
         const appointmentsCollection = database.collection("appointments");
@@ -39,21 +37,34 @@ async function run() {
         const prescriptionsCollection = database.collection("prescriptions");
         const usersCollection = database.collection("user");
 
+        app.get("/api/reviews", async(req, res) => {
+            try {
+                const reviews = await reviewsCollection.find({}).limit(6).toArray();
+                res.status(200).json({ success: true, reviews });
+            } catch (error) {
+                res.status(500).json({ success: false, error: error.message });
+            }
+        });
 
         //admin related api
-        app.get('/api/admin/users', async(req, res) => {
+        app.get("/api/admin/users", async(req, res) => {
             try {
-                const users = await usersCollection.find({}).sort({ createdAt: -1 }).toArray();
+                const users = await usersCollection
+                    .find({})
+                    .sort({ createdAt: -1 })
+                    .toArray();
                 res.status(200).json({ success: true, users });
             } catch (error) {
                 res.status(500).json({ success: false, error: error.message });
             }
         });
 
-        app.delete('/api/admin/users/:id', async(req, res) => {
+        app.delete("/api/admin/users/:id", async(req, res) => {
             try {
                 const { id } = req.params;
-                const result = await usersCollection.deleteOne({ _id: new ObjectId(id) });
+                const result = await usersCollection.deleteOne({
+                    _id: new ObjectId(id),
+                });
                 if (result.deletedCount === 1) {
                     res.status(200).json({ success: true, message: "User deleted" });
                 } else {
@@ -64,52 +75,54 @@ async function run() {
             }
         });
 
-        app.patch('/api/admin/users/:id/status', async(req, res) => {
+        app.patch("/api/admin/users/:id/status", async(req, res) => {
             try {
                 const { id } = req.params;
                 const { status } = req.body;
-                const result = await usersCollection.updateOne({ _id: new ObjectId(id) }, { $set: { status, updatedAt: new Date() } });
+                const result = await usersCollection.updateOne({ _id: new ObjectId(id) }, { $set: { status, updatedAt: new Date() } }, );
                 res.status(200).json({ success: true, data: result });
             } catch (error) {
                 res.status(500).json({ success: false, error: error.message });
             }
         });
 
-
-
-        app.get('/api/admin/doctors', async(req, res) => {
+        app.get("/api/admin/doctors", async(req, res) => {
             try {
-                const { status } = req.query; // optional filter: "verified" | "pending" | "rejected"
+                const { status } = req.query;
                 const query = status ? { verificationStatus: status } : {};
-                const doctors = await doctorsCollection.find(query).sort({ createdAt: -1 }).toArray();
+                const doctors = await doctorsCollection
+                    .find(query)
+                    .sort({ createdAt: -1 })
+                    .toArray();
                 res.status(200).json({ success: true, doctors });
             } catch (error) {
                 res.status(500).json({ success: false, error: error.message });
             }
         });
 
-        app.patch('/api/admin/doctors/:id/verify', async(req, res) => {
+        app.patch("/api/admin/doctors/:id/verify", async(req, res) => {
             try {
                 const { id } = req.params;
-                const { action } = req.body; // "verify" | "reject" | "cancel"
+                const { action } = req.body;
                 const statusMap = {
                     verify: "verified",
                     reject: "rejected",
-                    cancel: "pending"
+                    cancel: "pending",
                 };
                 const verificationStatus = statusMap[action];
                 if (!verificationStatus) {
-                    return res.status(400).json({ success: false, message: "Invalid action" });
+                    return res
+                        .status(400)
+                        .json({ success: false, message: "Invalid action" });
                 }
-                const result = await doctorsCollection.updateOne({ _id: new ObjectId(id) }, { $set: { verificationStatus, updatedAt: new Date() } });
+                const result = await doctorsCollection.updateOne({ _id: new ObjectId(id) }, { $set: { verificationStatus, updatedAt: new Date() } }, );
                 res.status(200).json({ success: true, data: result });
             } catch (error) {
                 res.status(500).json({ success: false, error: error.message });
             }
         });
 
-
-        app.get('/api/admin/appointments', async(req, res) => {
+        app.get("/api/admin/appointments", async(req, res) => {
             try {
                 const { status, page = 1, limit = 10 } = req.query;
                 const query = status ? { appointmentStatus: status } : {};
@@ -126,14 +139,14 @@ async function run() {
                     appointments,
                     total,
                     totalPages: Math.ceil(total / parseInt(limit)),
-                    currentPage: parseInt(page)
+                    currentPage: parseInt(page),
                 });
             } catch (error) {
                 res.status(500).json({ success: false, error: error.message });
             }
         });
 
-        app.get('/api/admin/payments', async(req, res) => {
+        app.get("/api/admin/payments", async(req, res) => {
             try {
                 const { page = 1, limit = 10 } = req.query;
                 const skip = (parseInt(page) - 1) * parseInt(limit);
@@ -149,26 +162,34 @@ async function run() {
                     payments,
                     total,
                     totalPages: Math.ceil(total / parseInt(limit)),
-                    currentPage: parseInt(page)
+                    currentPage: parseInt(page),
                 });
             } catch (error) {
                 res.status(500).json({ success: false, error: error.message });
             }
         });
 
-        app.get('/api/admin/stats', async(req, res) => {
+        app.get("/api/admin/stats", async(req, res) => {
             try {
-                const [totalDoctors, totalPatients, totalAppointments, totalReviews, totalPayments] = await Promise.all([
+                const [
+                    totalDoctors,
+                    totalPatients,
+                    totalAppointments,
+                    totalReviews,
+                    totalPayments,
+                ] = await Promise.all([
                     doctorsCollection.countDocuments({ verificationStatus: "verified" }),
                     usersCollection.countDocuments({ role: "patient" }),
                     appointmentsCollection.countDocuments({}),
                     reviewsCollection.countDocuments({}),
-                    paymentsCollection.countDocuments({})
+                    paymentsCollection.countDocuments({}),
                 ]);
 
-                const revenueAgg = await paymentsCollection.aggregate([
-                    { $group: { _id: null, totalRevenue: { $sum: "$amount" } } }
-                ]).toArray();
+                const revenueAgg = await paymentsCollection
+                    .aggregate([
+                        { $group: { _id: null, totalRevenue: { $sum: "$amount" } } },
+                    ])
+                    .toArray();
 
                 res.status(200).json({
                     success: true,
@@ -178,20 +199,70 @@ async function run() {
                         totalAppointments,
                         totalReviews,
                         totalPayments,
-                        totalRevenue: revenueAgg[0] ? .totalRevenue || 0
-                    }
+                        totalRevenue: (revenueAgg[0] && revenueAgg[0].totalRevenue) || 0,
+                    },
                 });
             } catch (error) {
                 res.status(500).json({ success: false, error: error.message });
             }
         });
 
+        app.get("/api/admin/doctor-performance", async(req, res) => {
+            try {
+                const performance = await reviewsCollection
+                    .aggregate([{
+                            $group: {
+                                _id: "$doctorEmail",
+                                avgRating: { $avg: "$rating" },
+                                totalReviews: { $sum: 1 },
+                            },
+                        },
+                        {
+                            $lookup: {
+                                from: "doctors",
+                                localField: "_id",
+                                foreignField: "email",
+                                as: "doctorInfo",
+                            },
+                        },
+                        {
+                            $unwind: {
+                                path: "$doctorInfo",
+                                preserveNullAndEmptyArrays: false,
+                            }, // ✅ fixed typo
+                        },
+                        {
+                            $project: {
+                                _id: 0,
+                                name: "$doctorInfo.doctorName",
+                                specialization: "$doctorInfo.specialization",
+                                avgRating: { $round: ["$avgRating", 1] },
+                                totalReviews: 1,
+                            },
+                        },
+                        { $sort: { avgRating: -1 } },
+                        { $limit: 10 },
+                    ])
+                    .toArray();
+
+                res.status(200).json({ success: true, data: performance });
+            } catch (error) {
+                res.status(500).json({ success: false, error: error.message });
+            }
+        });
 
         //doctor related api
-        app.patch('/api/doctors/update/:email', async(req, res) => {
+        app.patch("/api/doctors/update/:email", async(req, res) => {
             try {
                 const { email } = req.params;
-                const { qualifications, experience, consultationFee, availableSlots, hospitalName, specialization } = req.body;
+                const {
+                    qualifications,
+                    experience,
+                    consultationFee,
+                    availableSlots,
+                    hospitalName,
+                    specialization,
+                } = req.body;
                 const result = await doctorsCollection.updateOne({ email: email }, {
                     $set: {
                         qualifications,
@@ -200,16 +271,16 @@ async function run() {
                         availableSlots,
                         hospitalName,
                         specialization,
-                        updatedAt: new Date()
-                    }
-                });
+                        updatedAt: new Date(),
+                    },
+                }, );
                 res.status(200).json({ success: true, data: result });
             } catch (error) {
                 res.status(500).json({ success: false, error: error.message });
             }
         });
 
-        app.get('/api/doctors/profile/:email', async(req, res) => {
+        app.get("/api/doctors/profile/:email", async(req, res) => {
             try {
                 const { email } = req.params;
                 const doctor = await doctorsCollection.findOne({ email: email });
@@ -223,43 +294,53 @@ async function run() {
             }
         });
 
-        app.get('/api/appointments/doctor/:email', async(req, res) => {
+        app.get("/api/appointments/doctor/:email", async(req, res) => {
             try {
                 const email = req.params.email;
-                const result = await appointmentsCollection.find({ doctorEmail: email }).toArray();
+                const result = await appointmentsCollection
+                    .find({ doctorEmail: email })
+                    .toArray();
                 res.status(200).json({ success: true, data: result });
             } catch (error) {
                 res.status(500).json({ success: false, error: error.message });
             }
         });
 
-        app.patch('/api/appointments/status/:id', async(req, res) => {
+        app.patch("/api/appointments/status/:id", async(req, res) => {
             try {
                 const { id } = req.params;
                 const { status } = req.body;
-                const result = await appointmentsCollection.updateOne({ _id: new ObjectId(id) }, { $set: { appointmentStatus: status } });
+                const result = await appointmentsCollection.updateOne({ _id: new ObjectId(id) }, { $set: { appointmentStatus: status } }, );
                 res.status(200).json({ success: true, data: result });
             } catch (error) {
                 res.status(500).json({ success: false, error: error.message });
             }
         });
 
-        app.get('/api/doctor/prescriptions', async(req, res) => {
+        app.get("/api/doctor/prescriptions", async(req, res) => {
             try {
                 const { email } = req.query;
-                if (!email) return res.status(400).json({ success: false, message: "Doctor email is required" });
-                const prescriptions = await prescriptionsCollection.find({ doctorEmail: email }).toArray();
+                if (!email)
+                    return res
+                        .status(400)
+                        .json({ success: false, message: "Doctor email is required" });
+                const prescriptions = await prescriptionsCollection
+                    .find({ doctorEmail: email })
+                    .toArray();
                 res.status(200).json({ success: true, data: prescriptions });
             } catch (error) {
                 res.status(500).json({ success: false, error: error.message });
             }
         });
 
-        app.post('/api/doctor/prescriptions', async(req, res) => {
+        app.post("/api/doctor/prescriptions", async(req, res) => {
             try {
-                const { doctorEmail, patientEmail, diagnosis, medications, notes } = req.body;
+                const { doctorEmail, patientEmail, diagnosis, medications, notes } =
+                req.body;
                 if (!doctorEmail || !patientEmail || !diagnosis || !medications) {
-                    return res.status(400).json({ success: false, message: "All fields are required" });
+                    return res
+                        .status(400)
+                        .json({ success: false, message: "All fields are required" });
                 }
                 const newPrescription = {
                     doctorEmail,
@@ -267,82 +348,111 @@ async function run() {
                     diagnosis,
                     medications,
                     notes: notes || "",
-                    createdAt: new Date()
+                    createdAt: new Date(),
                 };
                 const result = await prescriptionsCollection.insertOne(newPrescription);
-                res.status(201).json({ success: true, data: { _id: result.insertedId, ...newPrescription } });
+                res
+                    .status(201)
+                    .json({
+                        success: true,
+                        data: { _id: result.insertedId, ...newPrescription },
+                    });
             } catch (error) {
                 res.status(500).json({ success: false, error: error.message });
             }
         });
 
-        app.put('/api/doctor/prescriptions/:id', async(req, res) => {
+        app.put("/api/doctor/prescriptions/:id", async(req, res) => {
             try {
                 const { id } = req.params;
                 const { diagnosis, medications, notes } = req.body;
-                const result = await prescriptionsCollection.updateOne({ _id: new ObjectId(id) }, { $set: { diagnosis, medications, notes, updatedAt: new Date() } });
+                const result = await prescriptionsCollection.updateOne({ _id: new ObjectId(id) }, { $set: { diagnosis, medications, notes, updatedAt: new Date() } }, );
                 res.status(200).json({ success: true, data: result });
             } catch (error) {
                 res.status(500).json({ success: false, error: error.message });
             }
         });
 
-        app.delete('/api/doctor/prescriptions/:id', async(req, res) => {
+        app.delete("/api/doctor/prescriptions/:id", async(req, res) => {
             try {
                 const { id } = req.params;
-                const result = await prescriptionsCollection.deleteOne({ _id: new ObjectId(id) });
+                const result = await prescriptionsCollection.deleteOne({
+                    _id: new ObjectId(id),
+                });
                 if (result.deletedCount === 1) {
-                    res.status(200).json({ success: true, message: "Prescription deleted successfully" });
+                    res
+                        .status(200)
+                        .json({
+                            success: true,
+                            message: "Prescription deleted successfully",
+                        });
                 } else {
-                    res.status(404).json({ success: false, message: "Prescription not found" });
+                    res
+                        .status(404)
+                        .json({ success: false, message: "Prescription not found" });
                 }
             } catch (error) {
                 res.status(500).json({ success: false, error: error.message });
             }
         });
 
-        app.get('/api/doctor/slots', async(req, res) => {
+        app.get("/api/doctor/slots", async(req, res) => {
             try {
                 const { email } = req.query;
                 if (!email) {
-                    return res.status(400).json({ success: false, message: "Doctor email is required" });
+                    return res
+                        .status(400)
+                        .json({ success: false, message: "Doctor email is required" });
                 }
-                const slots = await slotsCollection.find({ doctorEmail: email }).toArray();
+                const slots = await slotsCollection
+                    .find({ doctorEmail: email })
+                    .toArray();
                 res.status(200).json({ success: true, data: slots });
             } catch (error) {
                 res.status(500).json({ success: false, error: error.message });
             }
         });
 
-        app.post('/api/doctor/slots', async(req, res) => {
+        app.post("/api/doctor/slots", async(req, res) => {
             try {
                 const { doctorEmail, time } = req.body;
 
                 if (!doctorEmail || !time) {
-                    return res.status(400).json({ success: false, message: "All fields are required" });
+                    return res
+                        .status(400)
+                        .json({ success: false, message: "All fields are required" });
                 }
 
                 const newSlot = {
                     doctorEmail,
                     time,
                     isBooked: false,
-                    createdAt: new Date()
+                    createdAt: new Date(),
                 };
 
                 const result = await slotsCollection.insertOne(newSlot);
-                res.status(201).json({ success: true, data: { _id: result.insertedId, ...newSlot } });
+                res
+                    .status(201)
+                    .json({
+                        success: true,
+                        data: { _id: result.insertedId, ...newSlot },
+                    });
             } catch (error) {
                 res.status(500).json({ success: false, error: error.message });
             }
         });
 
-        app.delete('/api/doctor/slots/:id', async(req, res) => {
+        app.delete("/api/doctor/slots/:id", async(req, res) => {
             try {
                 const { id } = req.params;
-                const { ObjectId } = require('mongodb');
-                const result = await slotsCollection.deleteOne({ _id: new ObjectId(id) });
+                const { ObjectId } = require("mongodb");
+                const result = await slotsCollection.deleteOne({
+                    _id: new ObjectId(id),
+                });
                 if (result.deletedCount === 1) {
-                    res.status(200).json({ success: true, message: "Slot deleted successfully" });
+                    res
+                        .status(200)
+                        .json({ success: true, message: "Slot deleted successfully" });
                 } else {
                     res.status(404).json({ success: false, message: "Slot not found" });
                 }
@@ -351,14 +461,20 @@ async function run() {
             }
         });
 
-        app.get('/api/doctors', async(req, res) => {
+        app.get("/api/doctors", async(req, res) => {
             try {
-                const { search, specialization, sortBy, page = 1, limit = 6 } = req.query;
+                const {
+                    search,
+                    specialization,
+                    sortBy,
+                    page = 1,
+                    limit = 6,
+                } = req.query;
 
                 const query = { verificationStatus: "verified" };
 
                 if (search) {
-                    query.doctorName = { $regex: search, $options: 'i' };
+                    query.doctorName = { $regex: search, $options: "i" };
                 }
 
                 if (specialization) {
@@ -366,17 +482,18 @@ async function run() {
                 }
 
                 const sortOptions = {};
-                if (sortBy === 'fee_low') sortOptions.consultationFee = 1;
-                if (sortBy === 'fee_high') sortOptions.consultationFee = -1;
-                if (sortBy === 'experience') sortOptions.experience = -1;
-                if (sortBy === 'rating') sortOptions.rating = -1;
+                if (sortBy === "fee_low") sortOptions.consultationFee = 1;
+                if (sortBy === "fee_high") sortOptions.consultationFee = -1;
+                if (sortBy === "experience") sortOptions.experience = -1;
+                if (sortBy === "rating") sortOptions.rating = -1;
 
                 const parsedPage = parseInt(page);
                 const parsedLimit = parseInt(limit);
                 const skip = (parsedPage - 1) * parsedLimit;
 
                 const totalDoctors = await doctorsCollection.countDocuments(query);
-                const doctors = await doctorsCollection.find(query)
+                const doctors = await doctorsCollection
+                    .find(query)
                     .sort(sortOptions)
                     .skip(skip)
                     .limit(parsedLimit)
@@ -387,16 +504,20 @@ async function run() {
                     doctors,
                     totalDoctors,
                     totalPages: Math.ceil(totalDoctors / parsedLimit),
-                    currentPage: parsedPage
+                    currentPage: parsedPage,
                 });
             } catch (error) {
-                res.status(500).json({ success: false, error: "Failed to fetch doctors data" });
+                res
+                    .status(500)
+                    .json({ success: false, error: "Failed to fetch doctors data" });
             }
         });
 
-        app.get('/api/doctors/:id', async(req, res) => {
+        app.get("/api/doctors/:id", async(req, res) => {
             try {
-                const doctor = await database.collection('doctors').findOne({ _id: new ObjectId(req.params.id) });
+                const doctor = await database
+                    .collection("doctors")
+                    .findOne({ _id: new ObjectId(req.params.id) });
                 if (doctor) {
                     res.json({ success: true, doctor });
                 } else {
@@ -407,106 +528,109 @@ async function run() {
             }
         });
 
-
-
-
         //patient related api
-        app.get('/api/appointments/patient/:email', async(req, res) => {
+        app.get("/api/appointments/patient/:email", async(req, res) => {
             const email = req.params.email;
             const query = { patientEmail: email };
             const result = await appointmentsCollection.find(query).toArray();
             res.send(result);
-        })
+        });
 
-        app.patch('/api/appointments/cancel/:id', async(req, res) => {
+        app.patch("/api/appointments/cancel/:id", async(req, res) => {
             const id = req.params.id;
             const filter = { _id: new ObjectId(id) };
             const updateDoc = {
-                $set: { status: 'canceled' },
+                $set: { status: "canceled" },
             };
             const result = await appointmentsCollection.updateOne(filter, updateDoc);
             res.send(result);
         });
 
-        app.patch('/api/appointments/reschedule/:id', async(req, res) => {
+        app.patch("/api/appointments/reschedule/:id", async(req, res) => {
             const id = req.params.id;
             const { newDate } = req.body;
             const filter = { _id: new ObjectId(id) };
             const updateDoc = {
                 $set: {
                     date: newDate,
-                    status: 'pending'
+                    status: "pending",
                 },
             };
             const result = await appointmentsCollection.updateOne(filter, updateDoc);
             res.send(result);
         });
 
-        app.get('/payments/:email', async(req, res) => {
+        app.get("/payments/:email", async(req, res) => {
             try {
                 const { email } = req.params;
-                const paymentRecords = await appointmentsCollection.find({
-                    patientEmail: email,
-                    paymentStatus: "paid"
-                }).sort({ createdAt: -1 }).toArray();
+                const paymentRecords = await appointmentsCollection
+                    .find({
+                        patientEmail: email,
+                        paymentStatus: "paid",
+                    })
+                    .sort({ createdAt: -1 })
+                    .toArray();
 
                 res.status(200).json({ success: true, payments: paymentRecords });
             } catch (error) {
-                res.status(500).json({ success: false, error: "Internal Server Error" });
+                res
+                    .status(500)
+                    .json({ success: false, error: "Internal Server Error" });
             }
         });
 
-        app.get('/api/reviews/patient/:email', async(req, res) => {
+        app.get("/api/reviews/patient/:email", async(req, res) => {
             try {
                 const email = req.params.email;
-                const reviews = await reviewsCollection.find({ patientEmail: email }).toArray();
+                const reviews = await reviewsCollection
+                    .find({ patientEmail: email })
+                    .toArray();
                 res.status(200).json({ success: true, reviews });
             } catch (error) {
-                res.status(500).json({ success: false, error: "Failed to fetch reviews" });
+                res
+                    .status(500)
+                    .json({ success: false, error: "Failed to fetch reviews" });
             }
         });
 
-        app.delete('/api/reviews/:id', async(req, res) => {
+        app.delete("/api/reviews/:id", async(req, res) => {
             try {
                 const id = req.params.id;
-                const result = await reviewsCollection.deleteOne({ _id: new ObjectId(id) });
-                res.status(200).json({ success: true, deletedCount: result.deletedCount });
+                const result = await reviewsCollection.deleteOne({
+                    _id: new ObjectId(id),
+                });
+                res
+                    .status(200)
+                    .json({ success: true, deletedCount: result.deletedCount });
             } catch (error) {
-                res.status(500).json({ success: false, error: "Failed to delete review" });
+                res
+                    .status(500)
+                    .json({ success: false, error: "Failed to delete review" });
             }
         });
 
-        app.post('/api/reviews', async(req, res) => {
+        app.post("/api/reviews", async(req, res) => {
             try {
                 const reviewData = {...req.body, createdAt: new Date() };
                 const result = await reviewsCollection.insertOne(reviewData);
                 res.status(201).json({ success: true, insertedId: result.insertedId });
             } catch (error) {
-                res.status(500).json({ success: false, error: "Failed to post review" });
+                res
+                    .status(500)
+                    .json({ success: false, error: "Failed to post review" });
             }
         });
 
-
         // Send a ping to confirm a successful connection
         await client.db("admin").command({ ping: 1 });
-        console.log("Pinged your deployment. You successfully connected to MongoDB!");
+        console.log(
+            "Pinged your deployment. You successfully connected to MongoDB!",
+        );
     } catch (error) {
         console.error("Database connection error:", error);
     }
 }
 run().catch(console.dir);
-
-
-app.listen(port, () => {
-    console.log(`AuraNex app listening on port ${port}`);
-});
-}
-catch (error) {
-    console.error("Database connection error:", error);
-}
-}
-run().catch(console.dir);
-
 
 app.listen(port, () => {
     console.log(`AuraNex app listening on port ${port}`);
