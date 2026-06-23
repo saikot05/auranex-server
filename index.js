@@ -37,7 +37,21 @@ async function run() {
         const paymentsCollection = database.collection("payments");
         const slotsCollection = database.collection("slots");
         const prescriptionsCollection = database.collection("prescriptions");
+        const usersCollection = database.collection("user");
 
+
+        //admin related api
+        app.get('/api/admin/users', async(req, res) => {
+            try {
+                const users = await usersCollection.find({}).sort({ createdAt: -1 }).toArray();
+                res.status(200).json({ success: true, users });
+            } catch (error) {
+                res.status(500).json({ success: false, error: error.message });
+            }
+        });
+
+
+        //doctor related api
         app.patch('/api/doctors/update/:email', async(req, res) => {
             try {
                 const { email } = req.params;
@@ -166,17 +180,15 @@ async function run() {
 
         app.post('/api/doctor/slots', async(req, res) => {
             try {
-                const { doctorEmail, date, startTime, endTime } = req.body;
+                const { doctorEmail, time } = req.body;
 
-                if (!doctorEmail || !date || !startTime || !endTime) {
+                if (!doctorEmail || !time) {
                     return res.status(400).json({ success: false, message: "All fields are required" });
                 }
 
                 const newSlot = {
                     doctorEmail,
-                    date,
-                    startTime,
-                    endTime,
+                    time,
                     isBooked: false,
                     createdAt: new Date()
                 };
