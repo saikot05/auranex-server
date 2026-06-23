@@ -156,6 +156,37 @@ async function run() {
             }
         });
 
+        app.get('/api/admin/stats', async(req, res) => {
+            try {
+                const [totalDoctors, totalPatients, totalAppointments, totalReviews, totalPayments] = await Promise.all([
+                    doctorsCollection.countDocuments({ verificationStatus: "verified" }),
+                    usersCollection.countDocuments({ role: "patient" }),
+                    appointmentsCollection.countDocuments({}),
+                    reviewsCollection.countDocuments({}),
+                    paymentsCollection.countDocuments({})
+                ]);
+
+                const revenueAgg = await paymentsCollection.aggregate([
+                    { $group: { _id: null, totalRevenue: { $sum: "$amount" } } }
+                ]).toArray();
+
+                res.status(200).json({
+                    success: true,
+                    stats: {
+                        totalDoctors,
+                        totalPatients,
+                        totalAppointments,
+                        totalReviews,
+                        totalPayments,
+                        totalRevenue: revenueAgg[0] ? .totalRevenue || 0
+                    }
+                });
+            } catch (error) {
+                res.status(500).json({ success: false, error: error.message });
+            }
+        });
+
+
         //doctor related api
         app.patch('/api/doctors/update/:email', async(req, res) => {
             try {
