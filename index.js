@@ -38,6 +38,40 @@ async function run() {
         const slotsCollection = database.collection("slots");
         const prescriptionsCollection = database.collection("prescriptions");
 
+        app.patch('/api/doctors/update/:email', async(req, res) => {
+            try {
+                const { email } = req.params;
+                const { qualifications, experience, consultationFee, availableSlots, hospitalName, specialization } = req.body;
+                const result = await doctorsCollection.updateOne({ email: email }, {
+                    $set: {
+                        qualifications,
+                        experience: Number(experience),
+                        consultationFee: Number(consultationFee),
+                        availableSlots,
+                        hospitalName,
+                        specialization,
+                        updatedAt: new Date()
+                    }
+                });
+                res.status(200).json({ success: true, data: result });
+            } catch (error) {
+                res.status(500).json({ success: false, error: error.message });
+            }
+        });
+
+        app.get('/api/doctors/profile/:email', async(req, res) => {
+            try {
+                const { email } = req.params;
+                const doctor = await doctorsCollection.findOne({ email: email });
+                if (doctor) {
+                    res.status(200).json({ success: true, doctor });
+                } else {
+                    res.status(404).json({ success: false, message: "Doctor not found" });
+                }
+            } catch (error) {
+                res.status(500).json({ success: false, error: error.message });
+            }
+        });
 
         app.get('/api/appointments/doctor/:email', async(req, res) => {
             try {
