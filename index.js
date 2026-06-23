@@ -34,7 +34,60 @@ async function run() {
         const appointmentsCollection = database.collection("appointments");
         const reviewsCollection = database.collection("reviews");
         const doctorsCollection = database.collection("doctors");
+        const paymentsCollection = database.collection("payments");
+        const slotsCollection = database.collection("slots");
 
+        app.get('/api/doctor/slots', async(req, res) => {
+            try {
+                const { email } = req.query;
+                if (!email) {
+                    return res.status(400).json({ success: false, message: "Doctor email is required" });
+                }
+                const slots = await slotsCollection.find({ doctorEmail: email }).toArray();
+                res.status(200).json({ success: true, data: slots });
+            } catch (error) {
+                res.status(500).json({ success: false, error: error.message });
+            }
+        });
+
+        app.post('/api/doctor/slots', async(req, res) => {
+            try {
+                const { doctorEmail, date, startTime, endTime } = req.body;
+
+                if (!doctorEmail || !date || !startTime || !endTime) {
+                    return res.status(400).json({ success: false, message: "All fields are required" });
+                }
+
+                const newSlot = {
+                    doctorEmail,
+                    date,
+                    startTime,
+                    endTime,
+                    isBooked: false,
+                    createdAt: new Date()
+                };
+
+                const result = await slotsCollection.insertOne(newSlot);
+                res.status(201).json({ success: true, data: { _id: result.insertedId, ...newSlot } });
+            } catch (error) {
+                res.status(500).json({ success: false, error: error.message });
+            }
+        });
+
+        app.delete('/api/doctor/slots/:id', async(req, res) => {
+            try {
+                const { id } = req.params;
+                const { ObjectId } = require('mongodb');
+                const result = await slotsCollection.deleteOne({ _id: new ObjectId(id) });
+                if (result.deletedCount === 1) {
+                    res.status(200).json({ success: true, message: "Slot deleted successfully" });
+                } else {
+                    res.status(404).json({ success: false, message: "Slot not found" });
+                }
+            } catch (error) {
+                res.status(500).json({ success: false, error: error.message });
+            }
+        });
 
         app.get('/api/doctors', async(req, res) => {
             try {
@@ -79,6 +132,18 @@ async function run() {
             }
         });
 
+        app.get('/api/doctors/:id', async(req, res) => {
+            try {
+                const doctor = await database.collection('doctors').findOne({ _id: new ObjectId(req.params.id) });
+                if (doctor) {
+                    res.json({ success: true, doctor });
+                } else {
+                    res.status(404).json({ success: false, message: "Doctor not found" });
+                }
+            } catch (error) {
+                res.status(500).json({ success: false, error: error.message });
+            }
+        });
 
 
 
