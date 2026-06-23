@@ -67,8 +67,41 @@ async function run() {
         app.patch('/api/admin/users/:id/status', async(req, res) => {
             try {
                 const { id } = req.params;
-                const { status } = req.body; // "active" | "suspended"
+                const { status } = req.body;
                 const result = await usersCollection.updateOne({ _id: new ObjectId(id) }, { $set: { status, updatedAt: new Date() } });
+                res.status(200).json({ success: true, data: result });
+            } catch (error) {
+                res.status(500).json({ success: false, error: error.message });
+            }
+        });
+
+
+
+        app.get('/api/admin/doctors', async(req, res) => {
+            try {
+                const { status } = req.query; // optional filter: "verified" | "pending" | "rejected"
+                const query = status ? { verificationStatus: status } : {};
+                const doctors = await doctorsCollection.find(query).sort({ createdAt: -1 }).toArray();
+                res.status(200).json({ success: true, doctors });
+            } catch (error) {
+                res.status(500).json({ success: false, error: error.message });
+            }
+        });
+
+        app.patch('/api/admin/doctors/:id/verify', async(req, res) => {
+            try {
+                const { id } = req.params;
+                const { action } = req.body; // "verify" | "reject" | "cancel"
+                const statusMap = {
+                    verify: "verified",
+                    reject: "rejected",
+                    cancel: "pending"
+                };
+                const verificationStatus = statusMap[action];
+                if (!verificationStatus) {
+                    return res.status(400).json({ success: false, message: "Invalid action" });
+                }
+                const result = await doctorsCollection.updateOne({ _id: new ObjectId(id) }, { $set: { verificationStatus, updatedAt: new Date() } });
                 res.status(200).json({ success: true, data: result });
             } catch (error) {
                 res.status(500).json({ success: false, error: error.message });
@@ -381,6 +414,17 @@ async function run() {
     } catch (error) {
         console.error("Database connection error:", error);
     }
+}
+run().catch(console.dir);
+
+
+app.listen(port, () => {
+    console.log(`AuraNex app listening on port ${port}`);
+});
+}
+catch (error) {
+    console.error("Database connection error:", error);
+}
 }
 run().catch(console.dir);
 
