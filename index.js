@@ -50,6 +50,30 @@ async function run() {
             }
         });
 
+        app.delete('/api/admin/users/:id', async(req, res) => {
+            try {
+                const { id } = req.params;
+                const result = await usersCollection.deleteOne({ _id: new ObjectId(id) });
+                if (result.deletedCount === 1) {
+                    res.status(200).json({ success: true, message: "User deleted" });
+                } else {
+                    res.status(404).json({ success: false, message: "User not found" });
+                }
+            } catch (error) {
+                res.status(500).json({ success: false, error: error.message });
+            }
+        });
+
+        app.patch('/api/admin/users/:id/status', async(req, res) => {
+            try {
+                const { id } = req.params;
+                const { status } = req.body; // "active" | "suspended"
+                const result = await usersCollection.updateOne({ _id: new ObjectId(id) }, { $set: { status, updatedAt: new Date() } });
+                res.status(200).json({ success: true, data: result });
+            } catch (error) {
+                res.status(500).json({ success: false, error: error.message });
+            }
+        });
 
         //doctor related api
         app.patch('/api/doctors/update/:email', async(req, res) => {
