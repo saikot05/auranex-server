@@ -36,6 +36,64 @@ async function run() {
         const doctorsCollection = database.collection("doctors");
         const paymentsCollection = database.collection("payments");
         const slotsCollection = database.collection("slots");
+        const prescriptionsCollection = database.collection("prescriptions");
+
+        app.get('/api/doctor/prescriptions', async(req, res) => {
+            try {
+                const { email } = req.query;
+                if (!email) return res.status(400).json({ success: false, message: "Doctor email is required" });
+                const prescriptions = await prescriptionsCollection.find({ doctorEmail: email }).toArray();
+                res.status(200).json({ success: true, data: prescriptions });
+            } catch (error) {
+                res.status(500).json({ success: false, error: error.message });
+            }
+        });
+
+        app.post('/api/doctor/prescriptions', async(req, res) => {
+            try {
+                const { doctorEmail, patientEmail, diagnosis, medications, notes } = req.body;
+                if (!doctorEmail || !patientEmail || !diagnosis || !medications) {
+                    return res.status(400).json({ success: false, message: "All fields are required" });
+                }
+                const newPrescription = {
+                    doctorEmail,
+                    patientEmail,
+                    diagnosis,
+                    medications,
+                    notes: notes || "",
+                    createdAt: new Date()
+                };
+                const result = await prescriptionsCollection.insertOne(newPrescription);
+                res.status(201).json({ success: true, data: { _id: result.insertedId, ...newPrescription } });
+            } catch (error) {
+                res.status(500).json({ success: false, error: error.message });
+            }
+        });
+
+        app.put('/api/doctor/prescriptions/:id', async(req, res) => {
+            try {
+                const { id } = req.params;
+                const { diagnosis, medications, notes } = req.body;
+                const result = await prescriptionsCollection.updateOne({ _id: new ObjectId(id) }, { $set: { diagnosis, medications, notes, updatedAt: new Date() } });
+                res.status(200).json({ success: true, data: result });
+            } catch (error) {
+                res.status(500).json({ success: false, error: error.message });
+            }
+        });
+
+        app.delete('/api/doctor/prescriptions/:id', async(req, res) => {
+            try {
+                const { id } = req.params;
+                const result = await prescriptionsCollection.deleteOne({ _id: new ObjectId(id) });
+                if (result.deletedCount === 1) {
+                    res.status(200).json({ success: true, message: "Prescription deleted successfully" });
+                } else {
+                    res.status(404).json({ success: false, message: "Prescription not found" });
+                }
+            } catch (error) {
+                res.status(500).json({ success: false, error: error.message });
+            }
+        });
 
         app.get('/api/doctor/slots', async(req, res) => {
             try {
