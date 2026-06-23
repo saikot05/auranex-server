@@ -108,6 +108,32 @@ async function run() {
             }
         });
 
+
+        app.get('/api/admin/appointments', async(req, res) => {
+            try {
+                const { status, page = 1, limit = 10 } = req.query;
+                const query = status ? { appointmentStatus: status } : {};
+                const skip = (parseInt(page) - 1) * parseInt(limit);
+                const total = await appointmentsCollection.countDocuments(query);
+                const appointments = await appointmentsCollection
+                    .find(query)
+                    .sort({ createdAt: -1 })
+                    .skip(skip)
+                    .limit(parseInt(limit))
+                    .toArray();
+                res.status(200).json({
+                    success: true,
+                    appointments,
+                    total,
+                    totalPages: Math.ceil(total / parseInt(limit)),
+                    currentPage: parseInt(page)
+                });
+            } catch (error) {
+                res.status(500).json({ success: false, error: error.message });
+            }
+        });
+
+
         //doctor related api
         app.patch('/api/doctors/update/:email', async(req, res) => {
             try {
