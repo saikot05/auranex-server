@@ -38,6 +38,28 @@ async function run() {
         const slotsCollection = database.collection("slots");
         const prescriptionsCollection = database.collection("prescriptions");
 
+
+        app.get('/api/appointments/doctor/:email', async(req, res) => {
+            try {
+                const email = req.params.email;
+                const result = await appointmentsCollection.find({ doctorEmail: email }).toArray();
+                res.status(200).json({ success: true, data: result });
+            } catch (error) {
+                res.status(500).json({ success: false, error: error.message });
+            }
+        });
+
+        app.patch('/api/appointments/status/:id', async(req, res) => {
+            try {
+                const { id } = req.params;
+                const { status } = req.body;
+                const result = await appointmentsCollection.updateOne({ _id: new ObjectId(id) }, { $set: { appointmentStatus: status } });
+                res.status(200).json({ success: true, data: result });
+            } catch (error) {
+                res.status(500).json({ success: false, error: error.message });
+            }
+        });
+
         app.get('/api/doctor/prescriptions', async(req, res) => {
             try {
                 const { email } = req.query;
