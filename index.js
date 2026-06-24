@@ -654,7 +654,7 @@ async function run() {
             }
         });
 
-        app.get("/payments/:email", async(req, res) => {
+        app.get(["/payments/:email", "/api/appointments/payments/:email"], verifyToken, async(req, res) => {
             try {
                 const { email } = req.params;
                 const paymentRecords = await appointmentsCollection
@@ -723,7 +723,7 @@ async function run() {
             }
         });
 
-        app.get("/api/reviews/patient/:email", async(req, res) => {
+        app.get("/api/reviews/patient/:email", verifyToken, async(req, res) => {
             try {
                 const email = req.params.email;
                 const reviews = await reviewsCollection
