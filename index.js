@@ -646,6 +646,56 @@ async function run() {
             }
         });
 
+        app.get("/api/stats/patient/:email", async(req, res) => {
+            try {
+                const email = req.params.email;
+                const [totalAppointments, upcomingAppointments, payments, reviews] = await Promise.all([
+                    appointmentsCollection.countDocuments({ patientEmail: email }),
+                    appointmentsCollection.countDocuments({ patientEmail: email, appointmentStatus: "pending" }),
+                    paymentsCollection.find({ patientEmail: email, paymentStatus: "paid" }).toArray(),
+                    reviewsCollection.countDocuments({ patientEmail: email }),
+                ]);
+                const totalPaid = payments.reduce((sum, p) => sum + (p.amount || 0), 0);
+                res.status(200).json({
+                    success: true,
+                    stats: {
+                        totalAppointments,
+                        upcomingCount: upcomingAppointments,
+                        totalPaid,
+                        favDoctorsCount: reviews,
+                    },
+                });
+            } catch (error) {
+                res.status(500).json({ success: false, error: error.message });
+            }
+        });
+
+        app.get("/api/stats/doctor/:email", async(req, res) => {
+            try {
+                const email = req.params.email;
+                const today = new Date().toLocaleDateString('en-US', { weekday: 'long' });
+                const [totalPatientsAgg, todaysAppointments, reviewsCount] = await Promise.all([
+                    appointmentsCollection.aggregate([
+                        { $match: { doctorEmail: email } },
+                        { $group: { _id: "$patientEmail" } },
+                        { $count: "total" },
+                    ]).toArray(),
+                    appointmentsCollection.countDocuments({ doctorEmail: email, selectedDate: today }),
+                    reviewsCollection.countDocuments({ doctorEmail: email }),
+                ]);
+                res.status(200).json({
+                    success: true,
+                    stats: {
+                        totalPatients: totalPatientsAgg[0]?.total || 0,
+                        todaysAppointments,
+                        reviewsCount,
+                    },
+                });
+            } catch (error) {
+                res.status(500).json({ success: false, error: error.message });
+            }
+        });
+
         app.get("/api/reviews/patient/:email", async(req, res) => {
             try {
                 const email = req.params.email;
