@@ -596,27 +596,35 @@ async function run() {
         });
 
         app.patch("/api/appointments/cancel/:id", async(req, res) => {
-            const id = req.params.id;
-            const filter = { _id: new ObjectId(id) };
-            const updateDoc = {
-                $set: { status: "canceled" },
-            };
-            const result = await appointmentsCollection.updateOne(filter, updateDoc);
-            res.send(result);
+            try {
+                const id = req.params.id;
+                const filter = { _id: new ObjectId(id) };
+                const updateDoc = {
+                    $set: { appointmentStatus: "canceled" },
+                };
+                const result = await appointmentsCollection.updateOne(filter, updateDoc);
+                res.status(200).json({ success: true, data: result });
+            } catch (error) {
+                res.status(500).json({ success: false, error: error.message });
+            }
         });
 
         app.patch("/api/appointments/reschedule/:id", async(req, res) => {
-            const id = req.params.id;
-            const { newDate } = req.body;
-            const filter = { _id: new ObjectId(id) };
-            const updateDoc = {
-                $set: {
-                    date: newDate,
-                    status: "pending",
-                },
-            };
-            const result = await appointmentsCollection.updateOne(filter, updateDoc);
-            res.send(result);
+            try {
+                const id = req.params.id;
+                const { newDate } = req.body;
+                const filter = { _id: new ObjectId(id) };
+                const updateDoc = {
+                    $set: {
+                        selectedDate: newDate,
+                        appointmentStatus: "pending",
+                    },
+                };
+                const result = await appointmentsCollection.updateOne(filter, updateDoc);
+                res.status(200).json({ success: true, data: result });
+            } catch (error) {
+                res.status(500).json({ success: false, error: error.message });
+            }
         });
 
         app.get("/payments/:email", async(req, res) => {
