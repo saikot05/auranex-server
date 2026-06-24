@@ -1,3 +1,6 @@
+const dns = require("node:dns");
+dns.setServers(["1.1.1.1", "1.0.0.1"]);
+
 const express = require("express");
 const cors = require("cors");
 const { jwtVerify, createRemoteJWKSet } = require("jose");
@@ -5,32 +8,48 @@ const app = express();
 
 require("dotenv").config();
 const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
+
 const port = process.env.PORT;
 const CLIENT_URL = process.env.CLIENT_URL;
 
 const JWKS = createRemoteJWKSet(new URL(`${CLIENT_URL}/api/auth/jwks`));
 
-app.use(cors());
+app.use(cors({
+    origin: CLIENT_URL,
+    credentials: true,
+}));
 app.use(express.json());
 
-const verifyToken = async (req, res, next) => {
+const verifyToken = async(req, res, next) => {
     const authHeader = req.headers.authorization;
     if (!authHeader || !authHeader.startsWith("Bearer ")) {
-        return res.status(401).json({ success: false, message: "Unauthorized" });
+        return res.status(401).json({ success: false, message: "Unauthorized: Missing or invalid token" });
     }
     const token = authHeader.split(" ")[1];
     try {
-        const { payload } = await jwtVerify(token, JWKS, {
-            issuer: CLIENT_URL,
-            audience: CLIENT_URL,
-        });
+        const { payload } = await jwtVerify(token, JWKS);
         req.user = payload.user || payload;
         next();
     } catch (err) {
-        console.error("JWKS Token verification failed:", err.message);
-        return res.status(403).json({ success: false, message: "Forbidden: Invalid token" });
+        console.error("JWT verification failed:", err.message);
+        return res.status(403).json({ success: false, message: "Forbidden: Invalid or expired token" });
     }
 };
+
+const verifyAdmin = (req, res, next) => {
+    if (!req.user || req.user.role !== "admin") {
+        return res.status(403).json({ success: false, message: "Forbidden: Access restricted to admins only" });
+    }
+    next();
+};
+
+const verifyDoctor = (req, res, next) => {
+    if (!req.user || req.user.role !== "doctor") {
+        return res.status(403).json({ success: false, message: "Forbidden: Access restricted to doctors only" });
+    }
+    next();
+};
+
 
 app.get("/", (req, res) => {
     res.send("AuraNex Server is running");
@@ -121,7 +140,7 @@ async function run() {
             }
         });
         //admin related api
-        app.get("/api/admin/users", verifyToken, async(req, res) => {
+        app.get("/api/admin/users", verifyToken, verifyAdmin, async(req, res) => {
             try {
                 const users = await usersCollection
                     .find({})
@@ -133,7 +152,7 @@ async function run() {
             }
         });
 
-        app.delete("/api/admin/users/:id", verifyToken, async(req, res) => {
+        app.delete("/api/admin/users/:id", verifyToken, verifyAdmin, async(req, res) => {
             try {
                 const { id } = req.params;
                 const result = await usersCollection.deleteOne({
@@ -149,7 +168,7 @@ async function run() {
             }
         });
 
-        app.patch("/api/admin/users/:id/status", verifyToken, async(req, res) => {
+        app.patch("/api/admin/users/:id/status", verifyToken, verifyAdmin, async(req, res) => {
             try {
                 const { id } = req.params;
                 const { status } = req.body;
@@ -160,7 +179,7 @@ async function run() {
             }
         });
 
-        app.get("/api/admin/doctors", verifyToken, async(req, res) => {
+        app.get("/api/admin/doctors", verifyToken, verifyAdmin, async(req, res) => {
             try {
                 const { status } = req.query;
                 const query = status ? { verificationStatus: status } : {};
@@ -174,7 +193,7 @@ async function run() {
             }
         });
 
-        app.patch("/api/admin/doctors/:id/verify", verifyToken, async(req, res) => {
+        app.patch("/api/admin/doctors/:id/verify", verifyToken, verifyAdmin, async(req, res) => {
             try {
                 const { id } = req.params;
                 const { action } = req.body;
@@ -196,7 +215,7 @@ async function run() {
             }
         });
 
-        app.get("/api/admin/appointments", verifyToken, async(req, res) => {
+        app.get("/api/admin/appointments", verifyToken, verifyAdmin, async(req, res) => {
             try {
                 const { status, page = 1, limit = 10 } = req.query;
                 const query = status ? { appointmentStatus: status } : {};
@@ -220,7 +239,7 @@ async function run() {
             }
         });
 
-        app.get("/api/admin/payments", verifyToken, async(req, res) => {
+        app.get("/api/admin/payments", verifyToken, verifyAdmin, async(req, res) => {
             try {
                 const { page = 1, limit = 10 } = req.query;
                 const skip = (parseInt(page) - 1) * parseInt(limit);
@@ -243,7 +262,7 @@ async function run() {
             }
         });
 
-        app.get("/api/admin/stats", verifyToken, async(req, res) => {
+        app.get("/api/admin/stats", verifyToken, verifyAdmin, async(req, res) => {
             try {
                 const [
                     totalDoctors,
@@ -281,7 +300,7 @@ async function run() {
             }
         });
 
-        app.get("/api/admin/doctor-performance", verifyToken, async(req, res) => {
+        app.get("/api/admin/doctor-performance", verifyToken, verifyAdmin, async(req, res) => {
             try {
                 const performance = await reviewsCollection
                     .aggregate([{
@@ -326,7 +345,7 @@ async function run() {
         });
 
         //doctor related api
-        app.patch("/api/doctors/update/:email", verifyToken, async(req, res) => {
+        app.patch("/api/doctors/update/:email", verifyToken, verifyDoctor, async(req, res) => {
             try {
                 const { email } = req.params;
                 const {
@@ -339,24 +358,20 @@ async function run() {
                     specialization,
                     profileImage,
                 } = req.body;
-                const result = await doctorsCollection.updateOne(
-                    { email: email },
-                    {
-                        $set: {
-                            qualifications,
-                            experience: Number(experience),
-                            consultationFee: Number(consultationFee),
-                            availableSlots: availableSlots || [],
-                            availableDays: availableDays || [],
-                            hospitalName,
-                            specialization,
-                            profileImage: profileImage || '',
-                            updatedAt: new Date(),
-                        },
-                        $setOnInsert: { email, createdAt: new Date(), verificationStatus: 'pending' },
+                const result = await doctorsCollection.updateOne({ email: email }, {
+                    $set: {
+                        qualifications,
+                        experience: Number(experience),
+                        consultationFee: Number(consultationFee),
+                        availableSlots: availableSlots || [],
+                        availableDays: availableDays || [],
+                        hospitalName,
+                        specialization,
+                        profileImage: profileImage || '',
+                        updatedAt: new Date(),
                     },
-                    { upsert: true }
-                );
+                    $setOnInsert: { email, createdAt: new Date(), verificationStatus: 'pending' },
+                }, { upsert: true });
                 res.status(200).json({ success: true, data: result });
             } catch (error) {
                 res.status(500).json({ success: false, error: error.message });
@@ -377,7 +392,7 @@ async function run() {
             }
         });
 
-        app.get("/api/appointments/doctor/:email", verifyToken, async(req, res) => {
+        app.get("/api/appointments/doctor/:email", verifyToken, verifyDoctor, async(req, res) => {
             try {
                 const email = req.params.email;
                 const result = await appointmentsCollection
@@ -389,7 +404,7 @@ async function run() {
             }
         });
 
-        app.patch("/api/appointments/status/:id", verifyToken, async(req, res) => {
+        app.patch("/api/appointments/status/:id", verifyToken, verifyDoctor, async(req, res) => {
             try {
                 const { id } = req.params;
                 const { status } = req.body;
@@ -400,7 +415,7 @@ async function run() {
             }
         });
 
-        app.get("/api/doctor/prescriptions", verifyToken, async(req, res) => {
+        app.get("/api/doctor/prescriptions", verifyToken, verifyDoctor, async(req, res) => {
             try {
                 const { email } = req.query;
                 if (!email)
@@ -416,7 +431,7 @@ async function run() {
             }
         });
 
-        app.post("/api/doctor/prescriptions", verifyToken, async(req, res) => {
+        app.post("/api/doctor/prescriptions", verifyToken, verifyDoctor, async(req, res) => {
             try {
                 const { doctorEmail, patientEmail, diagnosis, medications, notes } =
                 req.body;
@@ -445,7 +460,7 @@ async function run() {
             }
         });
 
-        app.put("/api/doctor/prescriptions/:id", verifyToken, async(req, res) => {
+        app.put("/api/doctor/prescriptions/:id", verifyToken, verifyDoctor, async(req, res) => {
             try {
                 const { id } = req.params;
                 const { diagnosis, medications, notes } = req.body;
@@ -456,7 +471,7 @@ async function run() {
             }
         });
 
-        app.delete("/api/doctor/prescriptions/:id", verifyToken, async(req, res) => {
+        app.delete("/api/doctor/prescriptions/:id", verifyToken, verifyDoctor, async(req, res) => {
             try {
                 const { id } = req.params;
                 const result = await prescriptionsCollection.deleteOne({
@@ -479,7 +494,7 @@ async function run() {
             }
         });
 
-        app.get("/api/doctor/slots", verifyToken, async(req, res) => {
+        app.get("/api/doctor/slots", verifyToken, verifyDoctor, async(req, res) => {
             try {
                 const { email } = req.query;
                 if (!email) {
@@ -496,7 +511,7 @@ async function run() {
             }
         });
 
-        app.post("/api/doctor/slots", verifyToken, async(req, res) => {
+        app.post("/api/doctor/slots", verifyToken, verifyDoctor, async(req, res) => {
             try {
                 const { doctorEmail, time } = req.body;
 
@@ -525,7 +540,7 @@ async function run() {
             }
         });
 
-        app.delete("/api/doctor/slots/:id", verifyToken, async(req, res) => {
+        app.delete("/api/doctor/slots/:id", verifyToken, verifyDoctor, async(req, res) => {
             try {
                 const { id } = req.params;
                 const { ObjectId } = require("mongodb");
@@ -694,7 +709,7 @@ async function run() {
             }
         });
 
-        app.get("/api/stats/doctor/:email", verifyToken, async(req, res) => {
+        app.get("/api/stats/doctor/:email", verifyToken, verifyDoctor, async(req, res) => {
             try {
                 const email = req.params.email;
                 const today = new Date().toLocaleDateString('en-US', { weekday: 'long' });
