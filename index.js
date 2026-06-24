@@ -1,42 +1,38 @@
 const express = require("express");
 const cors = require("cors");
-const jwt = require("jsonwebtoken");
+const { jwtVerify, createRemoteJWKSet } = require("jose");
 const app = express();
 
 require("dotenv").config();
 const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
 const port = process.env.PORT;
-const JWT_SECRET = process.env.JWT_SECRET;
+
+const JWKS = createRemoteJWKSet(new URL("http://localhost:3000/api/auth/jwks"));
 
 app.use(cors());
 app.use(express.json());
 
-const verifyToken = (req, res, next) => {
+const verifyToken = async (req, res, next) => {
     const authHeader = req.headers.authorization;
     if (!authHeader || !authHeader.startsWith("Bearer ")) {
         return res.status(401).json({ success: false, message: "Unauthorized" });
     }
     const token = authHeader.split(" ")[1];
-    jwt.verify(token, JWT_SECRET, (err, decoded) => {
-        if (err) {
-            return res.status(403).json({ success: false, message: "Forbidden: Invalid token" });
-        }
-        req.user = decoded;
+    try {
+        const { payload } = await jwtVerify(token, JWKS, {
+            issuer: "http://localhost:3000",
+            audience: "http://localhost:3000",
+        });
+        req.user = payload.user || payload;
         next();
-    });
+    } catch (err) {
+        console.error("JWKS Token verification failed:", err.message);
+        return res.status(403).json({ success: false, message: "Forbidden: Invalid token" });
+    }
 };
 
 app.get("/", (req, res) => {
     res.send("AuraNex Server is running");
-});
-
-app.post("/api/auth/token", (req, res) => {
-    const { email, role } = req.body;
-    if (!email) {
-        return res.status(400).json({ success: false, message: "Email is required" });
-    }
-    const token = jwt.sign({ email, role: role || "patient" }, JWT_SECRET, { expiresIn: "7d" });
-    res.status(200).json({ success: true, token });
 });
 
 const uri = process.env.MONGO_DB_URI;
