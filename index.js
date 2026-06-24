@@ -36,16 +36,27 @@ async function run() {
         const slotsCollection = database.collection("slots");
         const prescriptionsCollection = database.collection("prescriptions");
         const usersCollection = database.collection("user");
+        const storiesCollection = database.collection("success_stories");
 
-        app.get("/api/reviews", async(req, res) => {
+
+        app.get("/api/success-stories", async(req, res) => {
             try {
-                const reviews = await reviewsCollection.find({}).limit(6).toArray();
-                res.status(200).json({ success: true, reviews });
+                const stories = await storiesCollection.find({}).sort({ createdAt: -1 }).toArray();
+                res.status(200).json({ success: true, stories });
             } catch (error) {
                 res.status(500).json({ success: false, error: error.message });
             }
         });
 
+        app.post("/api/success-stories", async(req, res) => {
+            try {
+                const storyData = {...req.body, createdAt: new Date() };
+                const result = await storiesCollection.insertOne(storyData);
+                res.status(201).json({ success: true, insertedId: result.insertedId });
+            } catch (error) {
+                res.status(500).json({ success: false, error: error.message });
+            }
+        });
         //admin related api
         app.get("/api/admin/users", async(req, res) => {
             try {
@@ -620,6 +631,7 @@ async function run() {
                     .json({ success: false, error: "Failed to post review" });
             }
         });
+
 
         // Send a ping to confirm a successful connection
         await client.db("admin").command({ ping: 1 });
