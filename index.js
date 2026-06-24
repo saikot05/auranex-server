@@ -1,15 +1,42 @@
 const express = require("express");
 const cors = require("cors");
+const jwt = require("jsonwebtoken");
 const app = express();
 
 require("dotenv").config();
 const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
 const port = process.env.PORT;
+const JWT_SECRET = process.env.JWT_SECRET;
+
 app.use(cors());
 app.use(express.json());
 
+const verifyToken = (req, res, next) => {
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith("Bearer ")) {
+        return res.status(401).json({ success: false, message: "Unauthorized" });
+    }
+    const token = authHeader.split(" ")[1];
+    jwt.verify(token, JWT_SECRET, (err, decoded) => {
+        if (err) {
+            return res.status(403).json({ success: false, message: "Forbidden: Invalid token" });
+        }
+        req.user = decoded;
+        next();
+    });
+};
+
 app.get("/", (req, res) => {
     res.send("AuraNex Server is running");
+});
+
+app.post("/api/auth/token", (req, res) => {
+    const { email, role } = req.body;
+    if (!email) {
+        return res.status(400).json({ success: false, message: "Email is required" });
+    }
+    const token = jwt.sign({ email, role: role || "patient" }, JWT_SECRET, { expiresIn: "7d" });
+    res.status(200).json({ success: true, token });
 });
 
 const uri = process.env.MONGO_DB_URI;
@@ -97,7 +124,7 @@ async function run() {
             }
         });
         //admin related api
-        app.get("/api/admin/users", async(req, res) => {
+        app.get("/api/admin/users", verifyToken, async(req, res) => {
             try {
                 const users = await usersCollection
                     .find({})
@@ -109,7 +136,7 @@ async function run() {
             }
         });
 
-        app.delete("/api/admin/users/:id", async(req, res) => {
+        app.delete("/api/admin/users/:id", verifyToken, async(req, res) => {
             try {
                 const { id } = req.params;
                 const result = await usersCollection.deleteOne({
@@ -125,7 +152,7 @@ async function run() {
             }
         });
 
-        app.patch("/api/admin/users/:id/status", async(req, res) => {
+        app.patch("/api/admin/users/:id/status", verifyToken, async(req, res) => {
             try {
                 const { id } = req.params;
                 const { status } = req.body;
@@ -136,7 +163,7 @@ async function run() {
             }
         });
 
-        app.get("/api/admin/doctors", async(req, res) => {
+        app.get("/api/admin/doctors", verifyToken, async(req, res) => {
             try {
                 const { status } = req.query;
                 const query = status ? { verificationStatus: status } : {};
@@ -150,7 +177,7 @@ async function run() {
             }
         });
 
-        app.patch("/api/admin/doctors/:id/verify", async(req, res) => {
+        app.patch("/api/admin/doctors/:id/verify", verifyToken, async(req, res) => {
             try {
                 const { id } = req.params;
                 const { action } = req.body;
@@ -172,7 +199,7 @@ async function run() {
             }
         });
 
-        app.get("/api/admin/appointments", async(req, res) => {
+        app.get("/api/admin/appointments", verifyToken, async(req, res) => {
             try {
                 const { status, page = 1, limit = 10 } = req.query;
                 const query = status ? { appointmentStatus: status } : {};
@@ -196,7 +223,7 @@ async function run() {
             }
         });
 
-        app.get("/api/admin/payments", async(req, res) => {
+        app.get("/api/admin/payments", verifyToken, async(req, res) => {
             try {
                 const { page = 1, limit = 10 } = req.query;
                 const skip = (parseInt(page) - 1) * parseInt(limit);
@@ -219,7 +246,7 @@ async function run() {
             }
         });
 
-        app.get("/api/admin/stats", async(req, res) => {
+        app.get("/api/admin/stats", verifyToken, async(req, res) => {
             try {
                 const [
                     totalDoctors,
@@ -257,7 +284,7 @@ async function run() {
             }
         });
 
-        app.get("/api/admin/doctor-performance", async(req, res) => {
+        app.get("/api/admin/doctor-performance", verifyToken, async(req, res) => {
             try {
                 const performance = await reviewsCollection
                     .aggregate([{
@@ -302,7 +329,7 @@ async function run() {
         });
 
         //doctor related api
-        app.patch("/api/doctors/update/:email", async(req, res) => {
+        app.patch("/api/doctors/update/:email", verifyToken, async(req, res) => {
             try {
                 const { email } = req.params;
                 const {
@@ -353,7 +380,7 @@ async function run() {
             }
         });
 
-        app.get("/api/appointments/doctor/:email", async(req, res) => {
+        app.get("/api/appointments/doctor/:email", verifyToken, async(req, res) => {
             try {
                 const email = req.params.email;
                 const result = await appointmentsCollection
@@ -365,7 +392,7 @@ async function run() {
             }
         });
 
-        app.patch("/api/appointments/status/:id", async(req, res) => {
+        app.patch("/api/appointments/status/:id", verifyToken, async(req, res) => {
             try {
                 const { id } = req.params;
                 const { status } = req.body;
@@ -376,7 +403,7 @@ async function run() {
             }
         });
 
-        app.get("/api/doctor/prescriptions", async(req, res) => {
+        app.get("/api/doctor/prescriptions", verifyToken, async(req, res) => {
             try {
                 const { email } = req.query;
                 if (!email)
@@ -392,7 +419,7 @@ async function run() {
             }
         });
 
-        app.post("/api/doctor/prescriptions", async(req, res) => {
+        app.post("/api/doctor/prescriptions", verifyToken, async(req, res) => {
             try {
                 const { doctorEmail, patientEmail, diagnosis, medications, notes } =
                 req.body;
@@ -421,7 +448,7 @@ async function run() {
             }
         });
 
-        app.put("/api/doctor/prescriptions/:id", async(req, res) => {
+        app.put("/api/doctor/prescriptions/:id", verifyToken, async(req, res) => {
             try {
                 const { id } = req.params;
                 const { diagnosis, medications, notes } = req.body;
@@ -432,7 +459,7 @@ async function run() {
             }
         });
 
-        app.delete("/api/doctor/prescriptions/:id", async(req, res) => {
+        app.delete("/api/doctor/prescriptions/:id", verifyToken, async(req, res) => {
             try {
                 const { id } = req.params;
                 const result = await prescriptionsCollection.deleteOne({
@@ -455,7 +482,7 @@ async function run() {
             }
         });
 
-        app.get("/api/doctor/slots", async(req, res) => {
+        app.get("/api/doctor/slots", verifyToken, async(req, res) => {
             try {
                 const { email } = req.query;
                 if (!email) {
@@ -472,7 +499,7 @@ async function run() {
             }
         });
 
-        app.post("/api/doctor/slots", async(req, res) => {
+        app.post("/api/doctor/slots", verifyToken, async(req, res) => {
             try {
                 const { doctorEmail, time } = req.body;
 
@@ -501,7 +528,7 @@ async function run() {
             }
         });
 
-        app.delete("/api/doctor/slots/:id", async(req, res) => {
+        app.delete("/api/doctor/slots/:id", verifyToken, async(req, res) => {
             try {
                 const { id } = req.params;
                 const { ObjectId } = require("mongodb");
@@ -588,14 +615,14 @@ async function run() {
         });
 
         //patient related api
-        app.get("/api/appointments/patient/:email", async(req, res) => {
+        app.get("/api/appointments/patient/:email", verifyToken, async(req, res) => {
             const email = req.params.email;
             const query = { patientEmail: email };
             const result = await appointmentsCollection.find(query).toArray();
             res.send(result);
         });
 
-        app.patch("/api/appointments/cancel/:id", async(req, res) => {
+        app.patch("/api/appointments/cancel/:id", verifyToken, async(req, res) => {
             try {
                 const id = req.params.id;
                 const filter = { _id: new ObjectId(id) };
@@ -609,7 +636,7 @@ async function run() {
             }
         });
 
-        app.patch("/api/appointments/reschedule/:id", async(req, res) => {
+        app.patch("/api/appointments/reschedule/:id", verifyToken, async(req, res) => {
             try {
                 const id = req.params.id;
                 const { newDate } = req.body;
@@ -646,7 +673,7 @@ async function run() {
             }
         });
 
-        app.get("/api/stats/patient/:email", async(req, res) => {
+        app.get("/api/stats/patient/:email", verifyToken, async(req, res) => {
             try {
                 const email = req.params.email;
                 const [totalAppointments, upcomingAppointments, payments, reviews] = await Promise.all([
@@ -670,7 +697,7 @@ async function run() {
             }
         });
 
-        app.get("/api/stats/doctor/:email", async(req, res) => {
+        app.get("/api/stats/doctor/:email", verifyToken, async(req, res) => {
             try {
                 const email = req.params.email;
                 const today = new Date().toLocaleDateString('en-US', { weekday: 'long' });
@@ -710,7 +737,7 @@ async function run() {
             }
         });
 
-        app.delete("/api/reviews/:id", async(req, res) => {
+        app.delete("/api/reviews/:id", verifyToken, async(req, res) => {
             try {
                 const id = req.params.id;
                 const result = await reviewsCollection.deleteOne({
@@ -726,7 +753,7 @@ async function run() {
             }
         });
 
-        app.post("/api/reviews", async(req, res) => {
+        app.post("/api/reviews", verifyToken, async(req, res) => {
             try {
                 const reviewData = {...req.body, createdAt: new Date() };
                 const result = await reviewsCollection.insertOne(reviewData);
