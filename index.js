@@ -6,8 +6,9 @@ const app = express();
 require("dotenv").config();
 const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
 const port = process.env.PORT;
+const CLIENT_URL = process.env.CLIENT_URL;
 
-const JWKS = createRemoteJWKSet(new URL("http://localhost:3000/api/auth/jwks"));
+const JWKS = createRemoteJWKSet(new URL(`${CLIENT_URL}/api/auth/jwks`));
 
 app.use(cors());
 app.use(express.json());
@@ -20,8 +21,8 @@ const verifyToken = async (req, res, next) => {
     const token = authHeader.split(" ")[1];
     try {
         const { payload } = await jwtVerify(token, JWKS, {
-            issuer: "http://localhost:3000",
-            audience: "http://localhost:3000",
+            issuer: CLIENT_URL,
+            audience: CLIENT_URL,
         });
         req.user = payload.user || payload;
         next();
