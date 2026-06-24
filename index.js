@@ -38,6 +38,45 @@ async function run() {
         const usersCollection = database.collection("user");
         const storiesCollection = database.collection("success_stories");
 
+        app.post("/api/payments", async(req, res) => {
+            try {
+                const existing = await paymentsCollection.findOne({
+                    stripeSessionId: req.body.stripeSessionId
+                });
+
+                if (existing) {
+                    return res.status(200).json({ success: true, message: "Already saved" });
+                }
+
+                const result = await paymentsCollection.insertOne({
+                    ...req.body,
+                    paymentDate: new Date(),
+                });
+                res.status(201).json({ success: true, insertedId: result.insertedId });
+            } catch (error) {
+                res.status(500).json({ success: false, error: error.message });
+            }
+        });
+
+        app.post("/api/appointments", async(req, res) => {
+            try {
+                const existing = await appointmentsCollection.findOne({
+                    stripeSessionId: req.body.stripeSessionId
+                });
+
+                if (existing) {
+                    return res.status(200).json({ success: true, message: "Already saved" });
+                }
+
+                const result = await appointmentsCollection.insertOne({
+                    ...req.body,
+                    createdAt: new Date(),
+                });
+                res.status(201).json({ success: true, insertedId: result.insertedId });
+            } catch (error) {
+                res.status(500).json({ success: false, error: error.message });
+            }
+        });
 
         app.get("/api/success-stories", async(req, res) => {
             try {
@@ -240,7 +279,7 @@ async function run() {
                             $unwind: {
                                 path: "$doctorInfo",
                                 preserveNullAndEmptyArrays: false,
-                            }, // ✅ fixed typo
+                            },
                         },
                         {
                             $project: {
@@ -271,20 +310,29 @@ async function run() {
                     experience,
                     consultationFee,
                     availableSlots,
+                    availableDays,
                     hospitalName,
                     specialization,
+                    profileImage,
                 } = req.body;
-                const result = await doctorsCollection.updateOne({ email: email }, {
-                    $set: {
-                        qualifications,
-                        experience: Number(experience),
-                        consultationFee: Number(consultationFee),
-                        availableSlots,
-                        hospitalName,
-                        specialization,
-                        updatedAt: new Date(),
+                const result = await doctorsCollection.updateOne(
+                    { email: email },
+                    {
+                        $set: {
+                            qualifications,
+                            experience: Number(experience),
+                            consultationFee: Number(consultationFee),
+                            availableSlots: availableSlots || [],
+                            availableDays: availableDays || [],
+                            hospitalName,
+                            specialization,
+                            profileImage: profileImage || '',
+                            updatedAt: new Date(),
+                        },
+                        $setOnInsert: { email, createdAt: new Date(), verificationStatus: 'pending' },
                     },
-                }, );
+                    { upsert: true }
+                );
                 res.status(200).json({ success: true, data: result });
             } catch (error) {
                 res.status(500).json({ success: false, error: error.message });
