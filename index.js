@@ -1,5 +1,5 @@
-const dns = require("node:dns");
-dns.setServers(["1.1.1.1", "1.0.0.1"]);
+// const dns = require("node:dns");
+// dns.setServers(["1.1.1.1", "1.0.0.1"]);
 
 const express = require("express");
 const cors = require("cors");
@@ -69,7 +69,7 @@ const client = new MongoClient(uri, {
 async function run() {
     try {
         // Connect the client to the server	(optional starting in v4.7)
-        await client.connect();
+        //await client.connect();
 
         const database = client.db("auranex_db");
         const appointmentsCollection = database.collection("appointments");
