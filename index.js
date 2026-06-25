@@ -3,7 +3,7 @@
 
 const express = require("express");
 const cors = require("cors");
-const { jwtVerify, createRemoteJWKSet } = require("jose");
+const { jwtVerify, createRemoteJWKSet } = require("jose-cjs");
 const app = express();
 
 require("dotenv").config();
