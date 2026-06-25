@@ -651,14 +651,14 @@ async function run() {
         app.patch("/api/appointments/reschedule/:id", verifyToken, async(req, res) => {
             try {
                 const id = req.params.id;
-                const { newDate } = req.body;
+                const { newDate, newSlot } = req.body;
                 const filter = { _id: new ObjectId(id) };
-                const updateDoc = {
-                    $set: {
-                        selectedDate: newDate,
-                        appointmentStatus: "pending",
-                    },
+                const updateFields = {
+                    selectedDate: newDate,
+                    appointmentStatus: "pending",
                 };
+                if (newSlot) updateFields.selectedSlot = newSlot;
+                const updateDoc = { $set: updateFields };
                 const result = await appointmentsCollection.updateOne(filter, updateDoc);
                 res.status(200).json({ success: true, data: result });
             } catch (error) {
@@ -725,7 +725,7 @@ async function run() {
                 res.status(200).json({
                     success: true,
                     stats: {
-                        totalPatients: totalPatientsAgg[0]?.total || 0,
+                        totalPatients: totalPatientsAgg[0] && totalPatientsAgg[0].total || 0,
                         todaysAppointments,
                         reviewsCount,
                     },
@@ -776,10 +776,26 @@ async function run() {
                     .json({ success: false, error: "Failed to post review" });
             }
         });
+        app.get("/api/stats/platform", async(req, res) => {
+            try {
+                const [totalDoctors, totalPatients, totalAppointments, totalReviews] = await Promise.all([
+                    doctorsCollection.countDocuments({ verificationStatus: "verified" }),
+                    usersCollection.countDocuments({ role: "patient" }),
+                    appointmentsCollection.countDocuments({}),
+                    reviewsCollection.countDocuments({}),
+                ]);
+                res.status(200).json({
+                    success: true,
+                    stats: { totalDoctors, totalPatients, totalAppointments, totalReviews }
+                });
+            } catch (error) {
+                res.status(500).json({ success: false, error: error.message });
+            }
+        });
 
 
         // Send a ping to confirm a successful connection
-        await client.db("admin").command({ ping: 1 });
+        //await client.db("admin").command({ ping: 1 });
         console.log(
             "Pinged your deployment. You successfully connected to MongoDB!",
         );
